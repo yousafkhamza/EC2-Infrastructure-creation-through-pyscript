@@ -17,18 +17,19 @@ ec2 = boto3.resource('ec2',
                       region_name=config.REGION
                     )
 
-def key_pair():
-    key_pair = ec2_client.describe_key_pairs()['KeyPairs']
-    for item in key_pair:
-        if item['KeyName'] == var.KEY_NAME:
-            print ('The Key Pair "%s" is already created in amazon, So, we are using the same into this instance' % (var.KEY_NAME))
-        else:
-            key_pair = ec2_client.create_key_pair(KeyName=var.KEYNAME)
-            private_key = key_pair["KeyMaterial"]
-            # write private key to file with 400 permissions
-            with os.fdopen(os.open("./%s.pem" % (var.KEY_NAME), os.O_WRONLY | os.O_CREAT, 0o400), "w+") as handle:
-                handle.write(private_key)
-        
+password = var.PASSWORD
+USERDATA_SCRIPT = f'''
+#!/bin/bash
+echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
+echo "LANG=en_US.utf-8" >> /etc/environment
+echo "LC_ALL=en_US.utf-8" >> /etc/environment
+echo "{password}" | passwd root --stdin
+sed  -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+service sshd restart
+'''
+
+
 def instance_creation():
     # AMI Finding
     year = datetime.datetime.now().year
@@ -38,7 +39,7 @@ def instance_creation():
     for item in ami:
         if item['ImageOwnerAlias'] == "amazon" and item["Name"].startswith('amzn2-ami-hvm') and item['CreationDate'].startswith(str(year)):
             ami_img.append(item['ImageId'])
-            
+                
     # Security Group Creation
     group_id = []
     sg_group = ec2_client.describe_security_groups()['SecurityGroups']
@@ -57,7 +58,7 @@ def instance_creation():
                 print('Security Group Created %s in vpc %s.' % (security_group_id, vpc_id))
                 group_id.append(security_group_id)
                 data = ec2_client.authorize_security_group_ingress(
-                    GroupId=security_group_id,
+                GroupId=security_group_id,
                     IpPermissions=[
                         {'IpProtocol': 'tcp',
                          'FromPort': 80,
@@ -88,7 +89,7 @@ def instance_creation():
          MaxCount=1,
          InstanceType=var.IN_TYPE,
          SecurityGroupIds=[ group_id[0] ],
-         KeyName=var.KEY_NAME,
+         UserData=USERDATA_SCRIPT,
          TagSpecifications=[
                     {
                         'ResourceType': 'instance',
@@ -105,5 +106,4 @@ def instance_creation():
     print('----------------------------------------------------------')
     print("ID="+instances[0].id, "PrivateIP="+instances[0].private_ip_address)
     
-key_pair()
 instance_creation()
