@@ -13,6 +13,10 @@ Here it's a python script for creating AWS infrastructure through a python scrip
 - Variables and Configurations are passing through as a module
 
 ---
+## Architecture
+![alt_txt](https://i.ibb.co/Px9q8Xq/arch.jpg)
+
+---
 ## Modules used
 - [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
 - [os](https://docs.python.org/3/library/os.html)
